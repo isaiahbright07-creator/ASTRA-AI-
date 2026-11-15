@@ -10,52 +10,52 @@
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 .wrap{max-width:520px;margin:0 auto;padding:20px 16px 48px}
-h1{font-size:28px;margin:8px 0 4px;letter-spacing:-.5px}
-h2{font-size:18px;margin:0 0 10px}
-p{margin:0 0 12px}
-.mute{color:var(--mute);font-size:14px}
+h1{font-size:28px;margin:8px 0 4px;letter-spacing:-.5px}h2{font-size:18px;margin:0 0 10px}h3{font-size:14px;margin:14px 0 4px;color:var(--mute);text-transform:uppercase;letter-spacing:.5px}
+p{margin:0 0 12px}.mute{color:var(--mute);font-size:14px}
 .logo{display:flex;align-items:center;gap:8px;font-weight:700;font-size:20px}
 .logo b{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--accent);color:var(--accent-ink)}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin:14px 0}
 label{display:block;font-size:14px;font-weight:600;margin:12px 0 4px}
 input,select{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}
+input[type=checkbox]{width:auto;margin-right:8px}
+.chk{display:flex;align-items:center;font-weight:500;margin-top:14px}
 input:focus,select:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 button{font:inherit;font-weight:700;border:0;border-radius:10px;padding:13px 16px;cursor:pointer}
 .primary{width:100%;background:var(--accent);color:var(--accent-ink);margin-top:16px}
-.ghost{background:transparent;color:var(--ink);border:1px solid var(--line);padding:8px 12px;font-weight:600}
+.ghost{background:transparent;color:var(--ink);border:1px solid var(--line);padding:8px 12px;font-weight:600;text-decoration:none;font-size:15px;display:inline-block}
+.item{width:100%;text-align:left;background:var(--bg);color:var(--ink);border:1px solid var(--line);margin-top:8px;font-weight:600}
+.item small{display:block;color:var(--mute);font-weight:400}
 .tabs{display:flex;gap:6px;margin:16px 0 0}
 .tabs button{flex:1;background:transparent;color:var(--mute);border:1px solid var(--line)}
 .tabs button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .msg{margin-top:12px;font-size:14px}.err{color:var(--err)}.ok{color:var(--ok)}
-.top{display:flex;justify-content:space-between;align-items:center}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.tile{border:1px dashed var(--line);border-radius:12px;padding:12px;font-size:14px}
-.tile.wide{grid-column:1/-1}
+.tile{border:1px dashed var(--line);border-radius:12px;padding:12px;font-size:14px}.tile.wide{grid-column:1/-1}
 .row{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--line);font-size:15px}
-.row:last-child{border:0}
-.row span:first-child{color:var(--mute)}
+.row:last-child{border:0}.row span:first-child{color:var(--mute)}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.badge{display:inline-block;padding:2px 10px;border-radius:99px;font-size:13px;font-weight:700;border:1px solid var(--line)}
+iframe{width:100%;height:72vh;border:1px solid var(--line);border-radius:12px;background:#fff}
 </style>
 </head>
 <body>
 <div class="wrap" id="app"><p class="mute">Loading…</p></div>
-
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
-const SUPABASE_URL = "https://xcmsnbqemxenkmlerljy.supabase.co";
-const SUPABASE_KEY = "sb_publishable_6Vm4IZC29gpCp_T6OGpbOg_3YY6ZP1b";
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const sb = supabase.createClient("https://xcmsnbqemxenkmlerljy.supabase.co", "sb_publishable_6Vm4IZC29gpCp_T6OGpbOg_3YY6ZP1b");
 const app = document.getElementById("app");
 const LEVELS = [100,200,300,400,500,600];
+const CATS = {lecture_notes:"Lecture notes", past_questions:"Past questions", other:"Other"};
 let mode = "login", lists = {u:[],f:[],d:[]};
-
+const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const opts = (arr, label="Select") => `<option value="">${label}</option>` + arr.map(o => `<option value="${esc(o.id ?? o)}">${esc(o.name ?? o)}</option>`).join("");
+const opts = (arr, label="Select") => `<option value="">${label}</option>` + arr.map(o => `<option value="${esc(o.id)}">${esc(o.name)}</option>`).join("");
 const levelOpts = sel => LEVELS.map(l => `<option value="${l}" ${l==sel?"selected":""}>${l} level</option>`).join("");
 const semOpts = sel => [1,2].map(s => `<option value="${s}" ${s==sel?"selected":""}>${s==1?"First":"Second"} semester</option>`).join("");
-const $ = id => document.getElementById(id);
-const say = (text, cls="err") => { const m = $("msg"); if (m) { m.className = "msg " + cls; m.textContent = text; } };
+const say = (t, c="err") => { const m = $("msg"); if (m) { m.className = "msg " + c; m.textContent = t; } };
 const logo = `<div class="logo"><b>★</b> Astra AI</div>`;
+const semName = s => s == 1 ? "First semester" : "Second semester";
 
 async function loadLists() {
   const [u,f,d] = await Promise.all([
@@ -67,87 +67,133 @@ async function loadLists() {
 }
 
 function authView() {
-  const signup = mode === "signup";
+  const su = mode === "signup";
   app.innerHTML = `${logo}
-  <h1>${signup ? "Create your account" : "Welcome back"}</h1>
-  <p class="mute">${signup ? "Your tutor for lectures, notes and exams." : "Log in to continue studying."}</p>
-  <div class="tabs"><button id="tLogin" class="${signup?"":"on"}">Log in</button><button id="tSign" class="${signup?"on":""}">Sign up</button></div>
+  <h1>${su ? "Create your account" : "Welcome back"}</h1>
+  <p class="mute">${su ? "Your tutor for lectures, notes and exams." : "Log in to continue studying."}</p>
+  <div class="tabs"><button id="tLogin" class="${su?"":"on"}">Log in</button><button id="tSign" class="${su?"on":""}">Sign up</button></div>
   <div class="card">
-    ${signup ? `<label for="name">Full name</label><input id="name" autocomplete="name">` : ""}
+    ${su ? `<label for="name">Full name</label><input id="name" autocomplete="name">
+    <label for="matric">Matric number</label><input id="matric" autocapitalize="characters" placeholder="Your matriculation number">` : ""}
     <label for="email">Email address</label><input id="email" type="email" autocomplete="email">
-    <label for="pass">Password</label><input id="pass" type="password" autocomplete="${signup?"new-password":"current-password"}" placeholder="${signup?"At least 8 characters":""}">
-    ${signup ? `
+    <label for="pass">Password</label><input id="pass" type="password" autocomplete="${su?"new-password":"current-password"}" placeholder="${su?"At least 8 characters":""}">
+    ${su ? `
     <label for="uni">University</label><select id="uni">${opts(lists.u)}</select>
     <label for="fac">Faculty</label><select id="fac"><option value="">Select university first</option></select>
     <label for="dep">Department</label><select id="dep"><option value="">Select faculty first</option></select>
     <div class="two"><div><label for="lvl">Level</label><select id="lvl">${levelOpts(100)}</select></div>
-    <div><label for="sem">Semester</label><select id="sem">${semOpts(1)}</select></div></div>` : ""}
-    <button class="primary" id="go">${signup ? "Create account" : "Log in"}</button>
+    <div><label for="sem">Semester</label><select id="sem">${semOpts(1)}</select></div></div>
+    <label class="chk"><input type="checkbox" id="wantHoc">I am the Head of Class (HOC) and want to apply</label>` : ""}
+    <button class="primary" id="go">${su ? "Create account" : "Log in"}</button>
     <div id="msg" class="msg"></div>
   </div>`;
   $("tLogin").onclick = () => { mode = "login"; authView(); };
   $("tSign").onclick = () => { mode = "signup"; authView(); };
-  if (signup) {
+  if (su) {
     $("uni").onchange = () => { $("fac").innerHTML = opts(lists.f.filter(x => x.university_id === $("uni").value), "Select faculty"); $("dep").innerHTML = opts([], "Select faculty first"); };
     $("fac").onchange = () => { $("dep").innerHTML = opts(lists.d.filter(x => x.faculty_id === $("fac").value), "Select department"); };
   }
-  $("go").onclick = signup ? doSignup : doLogin;
+  $("go").onclick = su ? doSignup : doLogin;
 }
 
 async function doLogin() {
-  const btn = $("go"); btn.disabled = true; say("");
+  const b = $("go"); b.disabled = true; say("");
   const { error } = await sb.auth.signInWithPassword({ email: $("email").value.trim(), password: $("pass").value });
-  btn.disabled = false;
-  if (error) return say(error.message.includes("Email not confirmed") ? "Confirm your email first. Check your inbox." : "Wrong email or password.");
+  b.disabled = false;
+  if (error) return say(error.message.includes("not confirmed") ? "Confirm your email first." : "Wrong email or password.");
   route();
 }
 
 async function doSignup() {
-  const v = { name: $("name").value.trim(), email: $("email").value.trim(), pass: $("pass").value, uni: $("uni").value, fac: $("fac").value, dep: $("dep").value, lvl: $("lvl").value, sem: $("sem").value };
-  if (!v.name || !v.email || !v.uni || !v.fac || !v.dep) return say("Fill in every field.");
+  const v = { name: $("name").value.trim(), matric: $("matric").value.trim(), email: $("email").value.trim(), pass: $("pass").value, uni: $("uni").value, fac: $("fac").value, dep: $("dep").value, lvl: $("lvl").value, sem: $("sem").value };
+  if (!v.name || !v.matric || !v.email || !v.uni || !v.fac || !v.dep) return say("Fill in every field, including your matric number.");
   if (v.pass.length < 8) return say("Password needs at least 8 characters.");
-  const btn = $("go"); btn.disabled = true; say("");
-  const { data, error } = await sb.auth.signUp({ email: v.email, password: v.pass, options: { data: { full_name: v.name, university_id: v.uni, faculty_id: v.fac, department_id: v.dep, level: v.lvl, semester: v.sem } } });
-  btn.disabled = false;
-  if (error) return say(error.message);
-  if (!data.session) { say("Account created. Check your email to confirm it, then log in.", "ok"); return; }
+  const b = $("go"); b.disabled = true; say("");
+  const { data, error } = await sb.auth.signUp({ email: v.email, password: v.pass, options: { data: { full_name: v.name, matric_number: v.matric, university_id: v.uni, faculty_id: v.fac, department_id: v.dep, level: v.lvl, semester: v.sem } } });
+  b.disabled = false;
+  if (error) return say(error.message.includes("Database error") ? "Could not create the account. This matric number may already be registered." : error.message);
+  if ($("wantHoc").checked) localStorage.setItem("wantHoc", "1");
+  if (!data.session) return say("Account created. Check your email to confirm it, then log in.", "ok");
   route();
 }
 
 async function dashView(session) {
-  const { data: p, error } = await sb.from("profiles").select("*, universities(name), faculties(name), departments(name)").eq("id", session.user.id).single();
-  if (error || !p) { app.innerHTML = `${logo}<div class="card"><p>We could not load your profile.</p><button class="ghost" id="out">Log out</button></div>`; $("out").onclick = logout; return; }
-  const { data: courses } = await sb.from("courses").select("code,title").eq("department_id", p.department_id).eq("level", p.level).eq("semester", p.semester).order("code");
+  const uid = session.user.id;
+  const { data: p } = await sb.from("profiles").select("*, universities(name), faculties(name), departments(name)").eq("id", uid).single();
+  if (!p) { app.innerHTML = `${logo}<div class="card"><p>We could not load your profile.</p><button class="ghost" id="out">Log out</button></div>`; $("out").onclick = logout; return; }
+  if (p.status === "suspended") {
+    app.innerHTML = `${logo}<h1>Account suspended</h1><div class="card"><p>Your account is not active. Contact your Head of Class or the Astra AI admin if you think this is a mistake.</p><button class="ghost" id="out">Log out</button></div>`;
+    $("out").onclick = logout; return;
+  }
+  const isStaff = p.role === "hoc";
+  let { data: apps } = await sb.from("hoc_applications").select("status").eq("user_id", uid).order("created_at", { ascending: false }).limit(1);
+  let lastApp = apps && apps[0] ? apps[0].status : null;
+  if (localStorage.getItem("wantHoc") === "1") {
+    localStorage.removeItem("wantHoc");
+    if (p.role === "student" && lastApp !== "pending") { const r = await sb.from("hoc_applications").insert({ user_id: uid, department_id: p.department_id, level: p.level }); if (!r.error) lastApp = "pending"; }
+  }
+  const confirmed = p.verification_status === "confirmed";
+  let courses = [];
+  if (confirmed) { const r = await sb.from("courses").select("id,code,title,semester").eq("department_id", p.department_id).eq("level", p.level).order("semester").order("code"); courses = r.data || []; }
   const first = (p.full_name || "").split(" ")[0] || "there";
+
+  const statusCard = confirmed
+    ? `<span class="badge ok">✓ Confirmed</span>`
+    : `<span class="badge">Waiting for confirmation</span><p class="mute" style="margin-top:10px">Your Head of Class will check your name and matric number. Once confirmed, your class library opens.</p>`;
+  const hocCard = isStaff
+    ? `<div class="card"><h2>Class rep tools</h2><p class="mute">Manage your class archive and confirm students.</p><a class="ghost" href="hoc.html">Open HOC dashboard</a></div>`
+    : lastApp === "pending" ? `<div class="card"><h2>HOC application</h2><p class="mute">Sent. Waiting for the Astra AI admin to approve it.</p></div>`
+    : `<div class="card"><h2>Are you the Head of Class?</h2><p class="mute">Apply and the admin will review it. One HOC per department and level.</p><button class="ghost" id="applyHoc">Apply as HOC</button><div id="msg" class="msg"></div></div>`;
+  const archive = !confirmed ? "" : `<div class="card"><h2>Class library</h2>` + (courses.length ? courses.map(c => `<button class="item" data-course="${esc(c.id)}" data-title="${esc(c.code + " " + c.title)}">${esc(c.code)} · ${esc(c.title)}<small>${semName(c.semester)}</small></button>`).join("") : `<p class="mute">No courses yet. Your Head of Class will add them.</p>`) + `</div>`;
+
   app.innerHTML = `
   <div class="top">${logo}<button class="ghost" id="out">Log out</button></div>
   <h1>Hello, ${esc(first)}</h1>
   <p class="mute">${esc(p.departments?.name)}, ${esc(p.universities?.name)}</p>
-
-  <div class="card"><h2>Your study space</h2>
-    <div class="tiles">
-      <div class="tile wide"><b>AI assistant</b><br><span class="mute">Coming soon</span></div>
-      <div class="tile"><b>PDF study room</b><br><span class="mute">Coming soon</span></div>
-      <div class="tile"><b>Teaching board</b><br><span class="mute">Coming soon</span></div>
-    </div></div>
-
+  <div class="card"><h2>Your status</h2>${statusCard}</div>
+  ${hocCard}${archive}
+  <div class="card"><h2>Study tools</h2><div class="tiles">
+    <div class="tile wide"><b>AI assistant</b><br><span class="mute">Coming soon</span></div>
+    <div class="tile"><b>PDF study room</b><br><span class="mute">Coming soon</span></div>
+    <div class="tile"><b>Teaching board</b><br><span class="mute">Coming soon</span></div></div></div>
   <div class="card"><h2>Academic details</h2>
+    <div class="row"><span>Matric number</span><span>${esc(p.matric_number || "Not set")}</span></div>
     <div class="row"><span>Faculty</span><span>${esc(p.faculties?.name)}</span></div>
     <div class="row"><span>Level</span><span>${esc(p.level)} level</span></div>
-    <div class="row"><span>Semester</span><span>${p.semester==1?"First":"Second"}</span></div>
-    <div class="row"><span>Plan</span><span>Free</span></div>
+    <div class="row"><span>Semester</span><span>${semName(p.semester)}</span></div>
     <div class="two"><div><label for="lvl">Level</label><select id="lvl">${levelOpts(p.level)}</select></div>
     <div><label for="sem">Semester</label><select id="sem">${semOpts(p.semester)}</select></div></div>
-    <button class="primary" id="save">Save changes</button><div id="msg" class="msg"></div></div>
-
-  <div class="card"><h2>Your courses</h2>
-    ${courses && courses.length ? courses.map(c => `<div class="row"><span>${esc(c.code)}</span><span>${esc(c.title)}</span></div>`).join("") : `<p class="mute">No courses yet. Your Head of Class will add them for your level.</p>`}
-  </div>`;
+    <p class="mute" style="margin-top:10px">Changing your level needs your new Head of Class to confirm you again.</p>
+    <button class="primary" id="save">Save changes</button><div id="msg2" class="msg"></div></div>`;
   $("out").onclick = logout;
-  $("save").onclick = async () => {
-    const { error } = await sb.from("profiles").update({ level: +$("lvl").value, semester: +$("sem").value }).eq("id", p.id);
-    error ? say("Could not save. Try again.") : (say("Saved.", "ok"), setTimeout(route, 600));
+  document.querySelectorAll("[data-course]").forEach(b => b.onclick = () => openCourse(b.dataset.course, b.dataset.title));
+  if ($("applyHoc")) $("applyHoc").onclick = async () => {
+    const r = await sb.from("hoc_applications").insert({ user_id: uid, department_id: p.department_id, level: p.level });
+    r.error ? say(r.error.message.includes("duplicate") ? "You already have a pending application." : "Could not send. Try again.") : route();
   };
+  $("save").onclick = async () => {
+    const r = await sb.from("profiles").update({ level: +$("lvl").value, semester: +$("sem").value }).eq("id", uid);
+    const m = $("msg2"); m.className = "msg " + (r.error ? "err" : "ok"); m.textContent = r.error ? "Could not save. Try again." : "Saved.";
+    if (!r.error) setTimeout(route, 700);
+  };
+}
+
+async function openCourse(id, title) {
+  app.innerHTML = `${logo}<p style="margin-top:14px"><button class="ghost" id="back">← Back</button></p><h1>${esc(title)}</h1><div id="list"><p class="mute">Loading…</p></div>`;
+  $("back").onclick = route;
+  const { data, error } = await sb.from("materials").select("title,description,category,file_path").eq("course_id", id).order("created_at", { ascending: false });
+  if (error) { $("list").innerHTML = `<p class="err">Could not load materials.</p>`; return; }
+  if (!data.length) { $("list").innerHTML = `<div class="card"><p class="mute">Nothing uploaded for this course yet.</p></div>`; return; }
+  $("list").innerHTML = Object.keys(CATS).map(k => { const items = data.filter(m => m.category === k); return items.length ? `<h3>${CATS[k]}</h3>` + items.map(m => `<button class="item" data-path="${esc(m.file_path)}" data-t="${esc(m.title)}">${esc(m.title)}${m.description ? `<small>${esc(m.description)}</small>` : ""}</button>`).join("") : ""; }).join("");
+  document.querySelectorAll("[data-path]").forEach(b => b.onclick = () => openFile(b.dataset.path, b.dataset.t, id, title));
+}
+
+async function openFile(path, name, courseId, courseTitle) {
+  app.innerHTML = `${logo}<p style="margin-top:14px"><button class="ghost" id="back">← Back</button></p><h2>${esc(name)}</h2><p class="mute">Loading…</p>`;
+  $("back").onclick = () => openCourse(courseId, courseTitle);
+  const { data, error } = await sb.storage.from("materials").createSignedUrl(path, 600);
+  if (error) { app.innerHTML += `<p class="err">Could not open this file.</p>`; return; }
+  app.querySelector("p.mute").outerHTML = `<iframe src="${data.signedUrl}" title="${esc(name)}"></iframe><p class="mute" style="margin-top:10px">Ask-the-AI about this document is coming soon.</p>`;
 }
 
 async function logout() { await sb.auth.signOut(); mode = "login"; route(); }
