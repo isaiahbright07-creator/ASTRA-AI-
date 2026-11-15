@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Astra AI · Class rep</title>
+<style>
+:root{--bg:#f4f6fb;--card:#fff;--ink:#14213d;--mute:#5b6784;--line:#dde2ee;--accent:#f2a900;--accent-ink:#14213d;--err:#b42318;--ok:#067647}
+@media (prefers-color-scheme:dark){:root{--bg:#0c1222;--card:#152039;--ink:#eef1fa;--mute:#9aa6c4;--line:#27345a;--accent:#f5b82e;--accent-ink:#0c1222;--err:#ff8a80;--ok:#6ee7a8}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:560px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:24px;margin:8px 0 2px}h2{font-size:18px;margin:0 0 8px}
+p{margin:0 0 10px}.mute{color:var(--mute);font-size:14px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin:14px 0}
+label{display:block;font-size:14px;font-weight:600;margin:12px 0 4px}
+input,select,textarea{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+button{font:inherit;font-weight:700;border:0;border-radius:10px;padding:12px 16px;cursor:pointer}
+.primary{width:100%;background:var(--accent);color:var(--accent-ink);margin-top:14px}
+.ghost{background:transparent;color:var(--ink);border:1px solid var(--line);padding:8px 12px;font-weight:600;font-size:15px;text-decoration:none;display:inline-block}
+.ok-b{background:var(--ok);color:#fff;padding:8px 14px}.no-b{background:var(--err);color:#fff;padding:8px 14px}
+.tabs{display:flex;gap:6px;margin:14px 0}
+.tabs button{flex:1;background:transparent;color:var(--mute);border:1px solid var(--line);padding:10px 6px}
+.tabs button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.msg{margin-top:10px;font-size:14px}.err{color:var(--err)}.ok{color:var(--ok)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.st{padding:12px 0;border-bottom:1px solid var(--line)}.st:last-child{border:0}
+.st .acts{display:flex;gap:8px;margin-top:8px}
+.badge{display:inline-block;padding:1px 9px;border-radius:99px;font-size:12px;font-weight:700;border:1px solid var(--line);margin-left:6px}
+.mat{padding:10px 0;border-bottom:1px solid var(--line);font-size:15px}.mat:last-child{border:0}
+.mat .acts{display:flex;gap:8px;margin-top:6px}
+.mat .acts button{padding:6px 12px;font-size:14px}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"><p class="mute">Loading…</p></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+const sb = supabase.createClient("https://xcmsnbqemxenkmlerljy.supabase.co", "sb_publishable_6Vm4IZC29gpCp_T6OGpbOg_3YY6ZP1b");
+const app = document.getElementById("app");
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const CATS = {lecture_notes:"Lecture notes", past_questions:"Past questions", other:"Other"};
+const say = (id, t, c="err") => { const m = $(id); if (m) { m.className = "msg " + c; m.textContent = t; } };
+const S = { uid:null, asg:null, dept:"", tab:"students", filter:"pending", courseId:"" };
+
+async function init() {
+  const { data: s } = await sb.auth.getSession();
+  if (!s.session) { app.innerHTML = `<h1>Class rep</h1><p>Log in on the <a href="index.html">main page</a> first.</p>`; return; }
+  S.uid = s.session.user.id;
+  const { data: a } = await sb.from("hoc_assignments").select("kind,department_id,level").eq("user_id", S.uid).eq("active", true).limit(1);
+  if (!a || !a.length) { app.innerHTML = `<h1>No access</h1><p>This page is for Heads of Class and their assistants.</p><a class="ghost" href="index.html">Back</a>`; return; }
+  S.asg = a[0];
+  const { data: d } = await sb.from("departments").select("name").eq("id", S.asg.department_id).single();
+  S.dept = d ? d.name : "";
+  render();
+}
+
+function render() {
+  const hoc = S.asg.kind === "hoc";
+  app.innerHTML = `<div class="top"><h1>${hoc ? "Head of Class" : "Assistant"}</h1><a class="ghost" href="index.html">Dashboard</a></div>
+  <p class="mute">${esc(S.dept)} · ${S.asg.level} level</p>
+  <div class="tabs"><button data-t="students" class="${S.tab==="students"?"on":""}">Students</button><button data-t="archive" class="${S.tab==="archive"?"on":""}">Archive</button>${hoc ? `<button data-t="team" class="${S.tab==="team"?"on":""}">Assistant</button>` : ""}</div>
+  <div id="body"><p class="mute">Loading…</p></div>`;
+  document.querySelectorAll("[data-t]").forEach(b => b.onclick = () => { S.tab = b.dataset.t; render(); });
+  ({ students: studentsTab, archive: archiveTab, team: teamTab })[S.tab]();
+}
+
+async function classStudents() {
+  const { data } = await sb.from("profiles").select("id,full_name,matric_number,verification_status,status,role").eq("department_id", S.asg.department_id).eq("level", S.asg.level);
+  return (data || []).sort((a, b) => !a.matric_number ? 1 : !b.matric_number ? -1 : a.matric_number.localeCompare(b.matric_number, undefined, { numeric: true }));
+}
+
+async function studentsTab() {
+  const all = await classStudents();
+  const n = k => all.filter(x => x.verification_status === k).length;
+  const shown = S.filter === "pending" ? all.filter(x => x.verification_status === "pending") : all;
+  $("body").innerHTML = `<div class="card"><h2>Class list</h2>
+    <p class="mute">${n("pending")} waiting · ${n("confirmed")} confirmed · ${n("denied")} denied. Sorted by matric number. Confirm only students you know are in your class.</p>
+    <div class="two"><button class="ghost" id="fP">Waiting</button><button class="ghost" id="fA">Everyone</button></div>
+    <div id="msg"></div>
+    ${shown.length ? shown.map(x => `<div class="st"><b>${esc(x.full_name)}</b><span class="badge">${esc(x.verification_status)}</span><br><span class="mute">${esc(x.matric_number || "No matric number")}</span>
+      ${x.verification_status === "pending" && x.status === "active" && x.id !== S.uid ? `<div class="acts"><button class="ok-b" data-ok="${x.id}">Confirm</button><button class="no-b" data-no="${x.id}">Deny</button></div>` : ""}</div>`).join("") : `<p class="mute" style="margin-top:12px">Nobody here.</p>`}</div>`;
+  $("fP").onclick = () => { S.filter = "pending"; studentsTab(); };
+  $("fA").onclick = () => { S.filter = "all"; studentsTab(); };
+  document.querySelectorAll("[data-ok]").forEach(b => b.onclick = () => decide(b.dataset.ok, "confirmed"));
+  document.querySelectorAll("[data-no]").forEach(b => b.onclick = () => { if (confirm("Deny this student? Their account is blocked right away. The admin can restore it.")) decide(b.dataset.no, "denied"); });
+}
+async function decide(id, d) {
+  const { error } = await sb.rpc("set_verification", { p_student: id, p_decision: d });
+  error ? say("msg", error.message) : studentsTab();
+}
+
+async function archiveTab() {
+  const { data: courses } = await sb.from("courses").select("id,code,title,semester").eq("department_id", S.asg.department_id).eq("level", S.asg.level).order("semester").order("code");
+  const list = courses || [];
+  $("body").innerHTML = `<div class="card"><h2>Add a course</h2>
+    <label for="cc">Course code</label><input id="cc" placeholder="AEF 301" autocapitalize="characters">
+    <label for="ct">Course title</label><input id="ct" placeholder="Farm Management I">
+    <label for="cs">Semester</label><select id="cs"><option value="1">First</option><option value="2">Second</option></select>
+    <button class="primary" id="addC">Add course</button><div id="cmsg" class="msg"></div></div>
+    <div class="card"><h2>Course archive</h2>
+    <select id="pick"><option value="">Choose a course</option>${list.map(c => `<option value="${c.id}" ${c.id===S.courseId?"selected":""}>${esc(c.code)} · ${esc(c.title)}</option>`).join("")}</select>
+    <div id="course"></div></div>`;
+  $("addC").onclick = async () => {
+    const code = $("cc").value.trim().toUpperCase(), title = $("ct").value.trim();
+    if (!code || !title) return say("cmsg", "Enter the code and the title.");
+    const { error } = await sb.from("courses").insert({ department_id: S.asg.department_id, level: S.asg.level, semester: +$("cs").value, code, title });
+    error ? say("cmsg", error.message.includes("duplicate") ? "That course code already exists." : "Could not add the course.") : archiveTab();
+  };
+  $("pick").onchange = () => { S.courseId = $("pick").value; showCourse(); };
+  showCourse();
+}
+
+async function showCourse() {
+  const box = $("course"); if (!S.courseId) { box.innerHTML = ""; return; }
+  const { data } = await sb.from("materials").select("id,title,description,category,file_path").eq("course_id", S.courseId).order("created_at", { ascending: false });
+  const mats = data || [];
+  box.innerHTML = `<h2 style="margin-top:16px">Upload a file</h2>
+    <label for="mt">Title</label><input id="mt" placeholder="Week 3 lecture notes">
+    <label for="mc">Type</label><select id="mc">${Object.entries(CATS).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select>
+    <label for="md">Short description (optional)</label><input id="md">
+    <label for="mf">PDF file (max 20 MB)</label><input id="mf" type="file" accept="application/pdf">
+    <button class="primary" id="up">Upload</button><div id="umsg" class="msg"></div>
+    <h2 style="margin-top:20px">In this course</h2>
+    ${mats.length ? mats.map(m => `<div class="mat"><b>${esc(m.title)}</b><span class="badge">${CATS[m.category]}</span>${m.description ? `<br><span class="mute">${esc(m.description)}</span>` : ""}
+      <div class="acts"><button class="ghost" data-ed="${m.id}" data-t="${esc(m.title)}">Rename</button><button class="ghost" data-rm="${m.id}" data-p="${esc(m.file_path)}">Remove</button></div></div>`).join("") : `<p class="mute">Nothing uploaded yet.</p>`}`;
+  $("up").onclick = upload;
+  box.querySelectorAll("[data-ed]").forEach(b => b.onclick = async () => {
+    const t = prompt("New title", b.dataset.t); if (!t || !t.trim()) return;
+    const { error } = await sb.from("materials").update({ title: t.trim() }).eq("id", b.dataset.ed);
+    error ? say("umsg", "Could not rename.") : showCourse();
+  });
+  box.querySelectorAll("[data-rm]").forEach(b => b.onclick = async () => {
+    if (!confirm("Remove this file? Students will no longer see it.")) return;
+    const { error } = await sb.from("materials").delete().eq("id", b.dataset.rm);
+    if (error) return say("umsg", "Could not remove.");
+    await sb.storage.from("materials").remove([b.dataset.p]); showCourse();
+  });
+}
+
+async function upload() {
+  const title = $("mt").value.trim(), f = $("mf").files[0];
+  if (!title || !f) return say("umsg", "Add a title and choose a PDF.");
+  if (f.type !== "application/pdf") return say("umsg", "Only PDF files are allowed.");
+  if (f.size > 20 * 1024 * 1024) return say("umsg", "File is bigger than 20 MB.");
+  const b = $("up"); b.disabled = true; say("umsg", "Uploading…", "mute");
+  const path = `${S.asg.department_id}/${S.asg.level}/${S.courseId}/${Date.now()}-${f.name.replace(/[^A-Za-z0-9._-]/g, "_")}`;
+  const up = await sb.storage.from("materials").upload(path, f, { contentType: "application/pdf" });
+  if (up.error) { b.disabled = false; return say("umsg", "Upload failed. Try again."); }
+  const { error } = await sb.from("materials").insert({ course_id: S.courseId, category: $("mc").value, title, description: $("md").value.trim() || null, file_path: path, uploaded_by: S.uid });
+  if (error) { await sb.storage.from("materials").remove([path]); b.disabled = false; return say("umsg", "Could not save the file details."); }
+  showCourse();
+}
+
+async function teamTab() {
+  const { data: a } = await sb.from("hoc_assignments").select("user_id").eq("department_id", S.asg.department_id).eq("level", S.asg.level).eq("kind", "assistant").eq("active", true);
+  const all = await classStudents();
+  const asst = a && a.length ? all.find(x => x.id === a[0].user_id) : null;
+  const cands = all.filter(x => x.verification_status === "confirmed" && x.status === "active" && x.id !== S.uid && (!asst || x.id !== asst.id));
+  $("body").innerHTML = `<div class="card"><h2>Your assistant</h2>
+    <p class="mute">One assistant can confirm students and manage the archive when you are away. Only you can appoint or remove them.</p>
+    ${asst ? `<p><b>${esc(asst.full_name)}</b><br><span class="mute">${esc(asst.matric_number || "")}</span></p><button class="no-b" id="rm">Remove assistant</button>` : `<p class="mute">No assistant yet.</p>`}
+    <label for="ap">${asst ? "Replace with" : "Appoint"} (confirmed students only)</label>
+    <select id="ap"><option value="">Choose a student</option>${cands.map(x => `<option value="${x.id}">${esc(x.full_name)} · ${esc(x.matric_number || "no matric")}</option>`).join("")}</select>
+    <button class="primary" id="go">Appoint</button><div id="msg" class="msg"></div></div>`;
+  $("go").onclick = async () => { if (!$("ap").value) return say("msg", "Choose a student."); const { error } = await sb.rpc("appoint_assistant", { p_student: $("ap").value }); error ? say("msg", error.message) : teamTab(); };
+  if ($("rm")) $("rm").onclick = async () => { if (!confirm("Remove your assistant?")) return; const { error } = await sb.rpc("remove_assistant"); error ? say("msg", error.message) : teamTab(); };
+}
+init();
+</script>
+</body>
+</html>
