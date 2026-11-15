@@ -69,22 +69,26 @@ function render() {
 }
 
 async function classStudents() {
-  const { data } = await sb.from("profiles").select("id,full_name,matric_number,verification_status,status,role").eq("department_id", S.asg.department_id).eq("level", S.asg.level);
+  const { data } = await sb.from("profiles").select("id,full_name,matric_number,verification_status,status,role,joined_via_link").eq("department_id", S.asg.department_id).eq("level", S.asg.level);
   return (data || []).sort((a, b) => !a.matric_number ? 1 : !b.matric_number ? -1 : a.matric_number.localeCompare(b.matric_number, undefined, { numeric: true }));
 }
 
 async function studentsTab() {
-  const all = await classStudents();
+  const [all, lk] = await Promise.all([classStudents(), sb.from("class_links").select("code").eq("department_id", S.asg.department_id).eq("level", S.asg.level).eq("active", true).limit(1)]);
+  const url = lk.data && lk.data[0] ? `${location.origin}/?join=${lk.data[0].code}` : "";
   const n = k => all.filter(x => x.verification_status === k).length;
   const shown = S.filter === "pending" ? all.filter(x => x.verification_status === "pending") : all;
-  $("body").innerHTML = `<div class="card"><h2>Class list</h2>
+  $("body").innerHTML = `<div class="card"><h2>Class link</h2><p class="mute">Send this link to your classmates. Only students who join with it can be accepted. If it spreads outside your class, make a new one: the old link stops working at once.</p>${url ? `<input id="lk" readonly value="${url}"><div class="two" style="margin-top:10px"><button class="ghost" id="cp">Copy link</button><a class="ghost" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent("Join our class on Astra AI: " + url)}">Share on WhatsApp</a></div>` : ""}<button class="primary" id="gen">${url ? "Make a new link" : "Generate class link"}</button><div id="gmsg" class="msg"></div></div>
+  <div class="card"><h2>Class list</h2>
     <p class="mute">${n("pending")} waiting · ${n("confirmed")} confirmed · ${n("denied")} denied. Sorted by matric number. Confirm only students you know are in your class.</p>
     <div class="two"><button class="ghost" id="fP">Waiting</button><button class="ghost" id="fA">Everyone</button></div>
     <div id="msg"></div>
-    ${shown.length ? shown.map(x => `<div class="st"><b>${esc(x.full_name)}</b><span class="badge">${esc(x.verification_status)}</span><br><span class="mute">${esc(x.matric_number || "No matric number")}</span>
-      ${x.verification_status === "pending" && x.status === "active" && x.id !== S.uid ? `<div class="acts"><button class="ok-b" data-ok="${x.id}">Confirm</button><button class="no-b" data-no="${x.id}">Deny</button></div>` : ""}</div>`).join("") : `<p class="mute" style="margin-top:12px">Nobody here.</p>`}</div>`;
+    ${shown.length ? shown.map(x => `<div class="st"><b>${esc(x.full_name)}</b><span class="badge">${esc(x.verification_status)}</span><span class="badge">${x.joined_via_link ? "Joined by link" : "No link"}</span><br><span class="mute">${esc(x.matric_number || "No matric number")}</span>
+      ${x.verification_status === "pending" && x.status === "active" && x.id !== S.uid ? `<div class="acts"><button class="ok-b" data-ok="${x.id}" ${x.joined_via_link ? "" : 'disabled style="opacity:.4"'}>Confirm</button><button class="no-b" data-no="${x.id}">Deny</button></div>` : ""}</div>`).join("") : `<p class="mute" style="margin-top:12px">Nobody here.</p>`}</div>`;
   $("fP").onclick = () => { S.filter = "pending"; studentsTab(); };
   $("fA").onclick = () => { S.filter = "all"; studentsTab(); };
+  if ($("cp")) $("cp").onclick = async () => { try { await navigator.clipboard.writeText(url); say("gmsg", "Link copied.", "ok"); } catch (e) { $("lk").select(); say("gmsg", "Press and hold the link to copy it.", "ok"); } };
+  $("gen").onclick = async () => { if (url && !confirm("Make a new link? The old one stops working immediately.")) return; const { error } = await sb.rpc("generate_class_link"); error ? say("gmsg", error.message) : studentsTab(); };
   document.querySelectorAll("[data-ok]").forEach(b => b.onclick = () => decide(b.dataset.ok, "confirmed"));
   document.querySelectorAll("[data-no]").forEach(b => b.onclick = () => { if (confirm("Deny this student? Their account is blocked right away. The admin can restore it.")) decide(b.dataset.no, "denied"); });
 }

@@ -47,7 +47,8 @@ const sb = supabase.createClient("https://xcmsnbqemxenkmlerljy.supabase.co", "sb
 const app = document.getElementById("app");
 const LEVELS = [100,200,300,400,500,600];
 const CATS = {lecture_notes:"Lecture notes", past_questions:"Past questions", other:"Other"};
-let mode = "login", lists = {u:[],f:[],d:[]};
+let joinCode = new URLSearchParams(location.search).get("join"), linkInfo = null;
+let mode = joinCode ? "signup" : "login", lists = {u:[],f:[],d:[]};
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const opts = (arr, label="Select") => `<option value="">${label}</option>` + arr.map(o => `<option value="${esc(o.id)}">${esc(o.name)}</option>`).join("");
@@ -78,18 +79,21 @@ function authView() {
     <label for="email">Email address</label><input id="email" type="email" autocomplete="email">
     <label for="pass">Password</label><input id="pass" type="password" autocomplete="${su?"new-password":"current-password"}" placeholder="${su?"At least 8 characters":""}">
     ${su ? `
+    ${linkInfo ? `<div class="card" style="margin:14px 0 0"><span class="mute">You are joining</span><br><b>${esc(linkInfo.department_name)}</b><br><span class="mute">${esc(linkInfo.faculty_name)}, ${esc(linkInfo.university_name)} · ${linkInfo.level} level</span></div>
+    <label for="sem">Semester</label><select id="sem">${semOpts(1)}</select>` : `${joinCode ? `<p class="msg err">This link is no longer valid. Ask your Head of Class for a new one.</p>` : ""}
     <label for="uni">University</label><select id="uni">${opts(lists.u)}</select>
     <label for="fac">Faculty</label><select id="fac"><option value="">Select university first</option></select>
     <label for="dep">Department</label><select id="dep"><option value="">Select faculty first</option></select>
     <div class="two"><div><label for="lvl">Level</label><select id="lvl">${levelOpts(100)}</select></div>
-    <div><label for="sem">Semester</label><select id="sem">${semOpts(1)}</select></div></div>
+    <div><label for="sem">Semester</label><select id="sem">${semOpts(1)}</select></div></div>`}
     <label class="chk"><input type="checkbox" id="wantHoc">I am the Head of Class (HOC) and want to apply</label>` : ""}
     <button class="primary" id="go">${su ? "Create account" : "Log in"}</button>
     <div id="msg" class="msg"></div>
+    ${su ? `<p class="mute" style="margin-top:14px">Warning: pretending to be another student or giving false details will get your account blocked, and there will be further consequences.</p>` : ""}
   </div>`;
   $("tLogin").onclick = () => { mode = "login"; authView(); };
   $("tSign").onclick = () => { mode = "signup"; authView(); };
-  if (su) {
+  if (su && !linkInfo) {
     $("uni").onchange = () => { $("fac").innerHTML = opts(lists.f.filter(x => x.university_id === $("uni").value), "Select faculty"); $("dep").innerHTML = opts([], "Select faculty first"); };
     $("fac").onchange = () => { $("dep").innerHTML = opts(lists.d.filter(x => x.faculty_id === $("fac").value), "Select department"); };
   }
@@ -105,11 +109,12 @@ async function doLogin() {
 }
 
 async function doSignup() {
-  const v = { name: $("name").value.trim(), matric: $("matric").value.trim(), email: $("email").value.trim(), pass: $("pass").value, uni: $("uni").value, fac: $("fac").value, dep: $("dep").value, lvl: $("lvl").value, sem: $("sem").value };
-  if (!v.name || !v.matric || !v.email || !v.uni || !v.fac || !v.dep) return say("Fill in every field, including your matric number.");
+  const g = id => $(id) ? $(id).value : "";
+  const v = { name: $("name").value.trim(), matric: $("matric").value.trim(), email: $("email").value.trim(), pass: $("pass").value, uni: g("uni"), fac: g("fac"), dep: g("dep"), lvl: g("lvl"), sem: g("sem") };
+  if (!v.name || !v.matric || !v.email || (!linkInfo && (!v.uni || !v.fac || !v.dep))) return say("Fill in every field, including your matric number.");
   if (v.pass.length < 8) return say("Password needs at least 8 characters.");
   const b = $("go"); b.disabled = true; say("");
-  const { data, error } = await sb.auth.signUp({ email: v.email, password: v.pass, options: { data: { full_name: v.name, matric_number: v.matric, university_id: v.uni, faculty_id: v.fac, department_id: v.dep, level: v.lvl, semester: v.sem } } });
+  const { data, error } = await sb.auth.signUp({ email: v.email, password: v.pass, options: { data: { full_name: v.name, matric_number: v.matric, university_id: v.uni, faculty_id: v.fac, department_id: v.dep, level: v.lvl, semester: v.sem, link_code: linkInfo ? joinCode : "" } } });
   b.disabled = false;
   if (error) return say(error.message.includes("Database error") ? "Could not create the account. This matric number may already be registered." : error.message);
   if ($("wantHoc").checked) localStorage.setItem("wantHoc", "1");
@@ -134,17 +139,17 @@ async function dashView(session) {
   }
   const confirmed = p.verification_status === "confirmed";
   let courses = [];
-  if (confirmed) { const r = await sb.from("courses").select("id,code,title,semester").eq("department_id", p.department_id).eq("level", p.level).order("semester").order("code"); courses = r.data || []; }
+  if (confirmed) { const r = await sb.from("courses").select("id,code,title,semester,level").eq("department_id", p.department_id).lte("level", p.level).order("level", { ascending: false }).order("semester").order("code"); courses = r.data || []; }
   const first = (p.full_name || "").split(" ")[0] || "there";
 
   const statusCard = confirmed
     ? `<span class="badge ok">✓ Confirmed</span>`
-    : `<span class="badge">Waiting for confirmation</span><p class="mute" style="margin-top:10px">Your Head of Class will check your name and matric number. Once confirmed, your class library opens.</p>`;
+    : `<span class="badge">Waiting for confirmation</span><p class="mute" style="margin-top:10px">Your Head of Class will check your name and matric number. Once confirmed, your class library opens.</p>${p.joined_via_link ? "" : `<p class="mute">You have not joined with a class link yet. Ask your Head of Class for the link and open it while logged in.</p>`}`;
   const hocCard = isStaff
     ? `<div class="card"><h2>Class rep tools</h2><p class="mute">Manage your class archive and confirm students.</p><a class="ghost" href="hoc.html">Open HOC dashboard</a></div>`
     : lastApp === "pending" ? `<div class="card"><h2>HOC application</h2><p class="mute">Sent. Waiting for the Astra AI admin to approve it.</p></div>`
     : `<div class="card"><h2>Are you the Head of Class?</h2><p class="mute">Apply and the admin will review it. One HOC per department and level.</p><button class="ghost" id="applyHoc">Apply as HOC</button><div id="msg" class="msg"></div></div>`;
-  const archive = !confirmed ? "" : `<div class="card"><h2>Class library</h2>` + (courses.length ? courses.map(c => `<button class="item" data-course="${esc(c.id)}" data-title="${esc(c.code + " " + c.title)}">${esc(c.code)} · ${esc(c.title)}<small>${semName(c.semester)}</small></button>`).join("") : `<p class="mute">No courses yet. Your Head of Class will add them.</p>`) + `</div>`;
+  const archive = !confirmed ? "" : `<div class="card"><h2>Class library</h2>` + (courses.length ? courses.map(c => `<button class="item" data-course="${esc(c.id)}" data-title="${esc(c.code + " " + c.title)}">${esc(c.code)} · ${esc(c.title)}<small>${c.level} level · ${semName(c.semester)}</small></button>`).join("") : `<p class="mute">No courses yet. Your Head of Class will add them.</p>`) + `</div>`;
 
   app.innerHTML = `
   <div class="top">${logo}<button class="ghost" id="out">Log out</button></div>
@@ -161,9 +166,8 @@ async function dashView(session) {
     <div class="row"><span>Faculty</span><span>${esc(p.faculties?.name)}</span></div>
     <div class="row"><span>Level</span><span>${esc(p.level)} level</span></div>
     <div class="row"><span>Semester</span><span>${semName(p.semester)}</span></div>
-    <div class="two"><div><label for="lvl">Level</label><select id="lvl">${levelOpts(p.level)}</select></div>
-    <div><label for="sem">Semester</label><select id="sem">${semOpts(p.semester)}</select></div></div>
-    <p class="mute" style="margin-top:10px">Changing your level needs your new Head of Class to confirm you again.</p>
+    <label for="sem">Semester</label><select id="sem">${semOpts(p.semester)}</select>
+    <p class="mute" style="margin-top:10px">Your level is set by your class and moves up at the end of the session.</p>
     <button class="primary" id="save">Save changes</button><div id="msg2" class="msg"></div></div>`;
   $("out").onclick = logout;
   document.querySelectorAll("[data-course]").forEach(b => b.onclick = () => openCourse(b.dataset.course, b.dataset.title));
@@ -172,7 +176,7 @@ async function dashView(session) {
     r.error ? say(r.error.message.includes("duplicate") ? "You already have a pending application." : "Could not send. Try again.") : route();
   };
   $("save").onclick = async () => {
-    const r = await sb.from("profiles").update({ level: +$("lvl").value, semester: +$("sem").value }).eq("id", uid);
+    const r = await sb.from("profiles").update({ semester: +$("sem").value }).eq("id", uid);
     const m = $("msg2"); m.className = "msg " + (r.error ? "err" : "ok"); m.textContent = r.error ? "Could not save. Try again." : "Saved.";
     if (!r.error) setTimeout(route, 700);
   };
@@ -197,9 +201,18 @@ async function openFile(path, name, courseId, courseTitle) {
 }
 
 async function logout() { await sb.auth.signOut(); mode = "login"; route(); }
+async function joinView() {
+  const ok = !!linkInfo;
+  app.innerHTML = `${logo}<h1>Join your class</h1><div class="card">${ok ? `<p>This link is for <b>${esc(linkInfo.department_name)}</b>, ${linkInfo.level} level.</p><button class="primary" id="jn">Join this class</button>` : `<p>This link is no longer valid. Ask your Head of Class for a new one.</p>`}<div id="msg" class="msg"></div></div><p><button class="ghost" id="skip">Go to dashboard</button></p>`;
+  const done = () => { history.replaceState(null, "", location.pathname); joinCode = null; linkInfo = null; route(); };
+  $("skip").onclick = done;
+  if (ok) $("jn").onclick = async () => { const { error } = await sb.rpc("join_with_link", { p_code: joinCode }); error ? say(error.message) : done(); };
+}
+
 async function route() {
   const { data } = await sb.auth.getSession();
-  if (data.session) return dashView(data.session);
+  if (joinCode) { const r = await sb.rpc("get_link_info", { p_code: joinCode }); linkInfo = r.data && r.data[0] ? r.data[0] : null; }
+  if (data.session) return joinCode ? joinView() : dashView(data.session);
   await loadLists(); authView();
 }
 route();
