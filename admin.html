@@ -8,6 +8,7 @@
 :root{--bg:#f4f6fb;--card:#fff;--ink:#14213d;--mute:#5b6784;--line:#dde2ee;--accent:#f2a900;--accent-ink:#14213d;--err:#b42318;--ok:#067647}
 @media (prefers-color-scheme:dark){:root{--bg:#0c1222;--card:#152039;--ink:#eef1fa;--mute:#9aa6c4;--line:#27345a;--accent:#f5b82e;--accent-ink:#0c1222;--err:#ff8a80;--ok:#6ee7a8}}
 *{box-sizing:border-box}
+body{border-top:8px solid var(--accent)}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 .wrap{max-width:560px;margin:0 auto;padding:20px 16px 48px}
 h1{font-size:26px;margin:8px 0 4px}h2{font-size:18px;margin:0 0 6px}
@@ -62,6 +63,8 @@ function render() {
   <div class="top"><h1>Admin</h1><a class="ghost" href="index.html">Dashboard</a></div>
   <p class="mute">Add one item per line. Items that already exist are skipped, so it is safe to paste a list twice.</p>
 
+  <div id="review"><p class="mute">Loading…</p></div>
+
   <div class="card"><h2>1. Add faculties</h2>
     <label for="fu">University</label><select id="fu">${opts(L.u, "Select university")}</select>
     <label for="ft">Faculty names (one per line)</label><textarea id="ft" placeholder="Faculty of Science"></textarea>
@@ -88,6 +91,7 @@ function render() {
   $("cd").onchange = showCourses;
   $("cl").onchange = showCourses; $("cs").onchange = showCourses;
   $("cb").onclick = addCourses;
+  review();
 }
 
 async function addFaculties() {
@@ -123,6 +127,30 @@ async function showCourses() {
   const { data } = await sb.from("courses").select("code,title").eq("department_id", did).eq("level", +$("cl").value).eq("semester", +$("cs").value).order("code");
   $("clist").innerHTML = `<label>Already added for this level and semester</label>` + (data && data.length ? data.map(c => `<div class="row"><span>${esc(c.code)}</span><span>${esc(c.title)}</span></div>`).join("") : `<p class="mute">None yet.</p>`);
 }
+async function review() {
+  const uid = (await sb.auth.getSession()).data.session.user.id;
+  const [ap, hs, dn] = await Promise.all([
+    sb.from("hoc_applications").select("id,level,profiles!user_id(full_name,matric_number),departments(name)").eq("status", "pending").order("created_at"),
+    sb.from("hoc_assignments").select("id,level,kind,profiles!user_id(full_name,matric_number),departments(name)").eq("active", true).order("created_at"),
+    sb.from("profiles").select("id,full_name,matric_number,level,departments(name)").eq("verification_status", "denied")
+  ]);
+  const A = ap.data || [], H = hs.data || [], D = dn.data || [];
+  const who = (n, m, d, l) => `<b>${esc(n)}</b><br><span class="mute">${esc(m || "No matric number")} · ${esc(d)} · ${l} level</span>`;
+  const btns = h => `<div style="display:flex;gap:8px;margin-top:8px">${h}</div>`;
+  $("review").innerHTML = `
+  <div class="card"><h2>HOC applications</h2><div id="rm" class="msg"></div>
+  ${A.length ? A.map(a => `<div class="row" style="display:block">${who(a.profiles?.full_name, a.profiles?.matric_number, a.departments?.name, a.level)}${btns(`<button class="primary" style="margin:0;width:auto" data-ap="${a.id}">Approve</button><button class="ghost" data-rj="${a.id}">Reject</button>`)}</div>`).join("") : `<p class="mute">No applications waiting.</p>`}</div>
+  <div class="card"><h2>Current HOCs and assistants</h2>
+  ${H.length ? H.map(a => `<div class="row" style="display:block">${who(a.profiles?.full_name, a.profiles?.matric_number, a.departments?.name, a.level)}<span class="mute">${a.kind === "hoc" ? "Head of Class" : "Assistant"}</span>${btns(`<button class="ghost" data-rv="${a.id}">Remove</button>`)}</div>`).join("") : `<p class="mute">None yet.</p>`}</div>
+  <div class="card"><h2>Denied students</h2><p class="mute">Blocked by an HOC. Restore anyone who was denied by mistake.</p>
+  ${D.length ? D.map(s => `<div class="row" style="display:block">${who(s.full_name, s.matric_number, s.departments?.name, s.level)}${btns(`<button class="ghost" data-rs="${s.id}">Restore</button>`)}</div>`).join("") : `<p class="mute">Nobody denied.</p>`}</div>`;
+  const on = (sel, fn) => document.querySelectorAll(sel).forEach(b => b.onclick = () => fn(b));
+  on("[data-ap]", async b => { const { error } = await sb.rpc("approve_hoc_application", { p_id: b.dataset.ap }); error ? say("rm", error.message) : review(); });
+  on("[data-rj]", async b => { if (!confirm("Reject this application?")) return; const { error } = await sb.from("hoc_applications").update({ status: "rejected", reviewed_by: uid, reviewed_at: new Date().toISOString() }).eq("id", b.dataset.rj); error ? say("rm", error.message) : review(); });
+  on("[data-rv]", async b => { if (!confirm("Remove this person? If they are the HOC, their assistant is removed too.")) return; const { error } = await sb.rpc("revoke_hoc", { p_id: b.dataset.rv }); error ? say("rm", error.message) : review(); });
+  on("[data-rs]", async b => { if (!confirm("Restore this student? They go back to waiting for confirmation.")) return; const { error } = await sb.from("profiles").update({ status: "active", verification_status: "pending" }).eq("id", b.dataset.rs); error ? say("rm", error.message) : review(); });
+}
+
 init();
 </script>
 </body>

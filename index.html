@@ -130,7 +130,10 @@ async function dashView(session) {
     app.innerHTML = `${logo}<h1>Account suspended</h1><div class="card"><p>Your account is not active. Contact your Head of Class or the Astra AI admin if you think this is a mistake.</p><button class="ghost" id="out">Log out</button></div>`;
     $("out").onclick = logout; return;
   }
-  const isStaff = p.role === "hoc";
+  const isStaff = p.role === "hoc", isAdmin = p.role === "admin";
+  let pendingN = 0;
+  if (isAdmin) { const r = await sb.from("hoc_applications").select("id", { count: "exact", head: true }).eq("status", "pending"); pendingN = r.count || 0; }
+  else if (isStaff) { const r = await sb.from("profiles").select("id", { count: "exact", head: true }).eq("department_id", p.department_id).eq("level", p.level).eq("verification_status", "pending"); pendingN = r.count || 0; }
   let { data: apps } = await sb.from("hoc_applications").select("status").eq("user_id", uid).order("created_at", { ascending: false }).limit(1);
   let lastApp = apps && apps[0] ? apps[0].status : null;
   if (localStorage.getItem("wantHoc") === "1") {
@@ -145,18 +148,21 @@ async function dashView(session) {
   const statusCard = confirmed
     ? `<span class="badge ok">✓ Confirmed</span>`
     : `<span class="badge">Waiting for confirmation</span><p class="mute" style="margin-top:10px">Your Head of Class will check your name and matric number. Once confirmed, your class library opens.</p>${p.joined_via_link ? "" : `<p class="mute">You have not joined with a class link yet. Ask your Head of Class for the link and open it while logged in.</p>`}`;
-  const hocCard = isStaff
-    ? `<div class="card"><h2>Class rep tools</h2><p class="mute">Manage your class archive and confirm students.</p><a class="ghost" href="hoc.html">Open HOC dashboard</a></div>`
+  const hocCard = isAdmin
+    ? `<div class="card" style="border-color:var(--accent)"><h2>Admin</h2><p class="mute">${pendingN} HOC application${pendingN === 1 ? "" : "s"} waiting for you.</p><a class="ghost" href="admin.html">Open admin dashboard</a></div>`
+    : isStaff
+    ? `<div class="card" style="border-color:var(--accent)"><h2>Class rep tools</h2><p class="mute">${pendingN} student${pendingN === 1 ? "" : "s"} waiting. Manage your class archive, link and assistant.</p><a class="ghost" href="hoc.html">Open HOC dashboard</a></div>`
     : lastApp === "pending" ? `<div class="card"><h2>HOC application</h2><p class="mute">Sent. Waiting for the Astra AI admin to approve it.</p></div>`
     : `<div class="card"><h2>Are you the Head of Class?</h2><p class="mute">Apply and the admin will review it. One HOC per department and level.</p><button class="ghost" id="applyHoc">Apply as HOC</button><div id="msg" class="msg"></div></div>`;
   const archive = !confirmed ? "" : `<div class="card"><h2>Class library</h2>` + (courses.length ? courses.map(c => `<button class="item" data-course="${esc(c.id)}" data-title="${esc(c.code + " " + c.title)}">${esc(c.code)} · ${esc(c.title)}<small>${c.level} level · ${semName(c.semester)}</small></button>`).join("") : `<p class="mute">No courses yet. Your Head of Class will add them.</p>`) + `</div>`;
 
   app.innerHTML = `
   <div class="top">${logo}<button class="ghost" id="out">Log out</button></div>
-  <h1>Hello, ${esc(first)}</h1>
+  <h1>Hello, ${esc(first)} ${isAdmin ? `<span class="badge">Admin</span>` : isStaff ? `<span class="badge">Class rep</span>` : ""}</h1>
   <p class="mute">${esc(p.departments?.name)}, ${esc(p.universities?.name)}</p>
+  ${isAdmin || isStaff ? hocCard : ""}
   <div class="card"><h2>Your status</h2>${statusCard}</div>
-  ${hocCard}${archive}
+  ${isAdmin || isStaff ? "" : hocCard}${archive}
   <div class="card"><h2>Study tools</h2><div class="tiles">
     <div class="tile wide"><b>AI assistant</b><br><span class="mute">Coming soon</span></div>
     <div class="tile"><b>PDF study room</b><br><span class="mute">Coming soon</span></div>
